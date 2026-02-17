@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>講義音声ノートAI - 最終安定版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 min-h-screen p-4 flex flex-col items-center justify-center">
+    <div class="max-w-xl w-full bg-white p-8 rounded-3xl shadow-2xl border border-slate-100">
+        <h1 class="text-3xl font-extrabold text-slate-900 mb-2 text-center">🎙️ Lecture Note AI</h1>
+        <p class="text-center text-slate-500 mb-8 text-sm">音声の文字起こし・要約・要点を自動生成</p>
+        
+        <div class="mb-6 p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+            <label class="block text-xs font-bold text-indigo-800 uppercase tracking-widest mb-2">Gemini API Key</label>
+            <input type="password" id="apiKey" class="w-full p-3 border-none rounded-xl focus:ring-2 focus:ring-indigo-400 outline-none shadow-sm" placeholder="AIzaSy...">
+        </div>
+
+        <div class="space-y-6">
+            <div class="relative">
+                <label class="block text-sm font-semibold text-slate-700 mb-2 font-sans">音声ファイル (.m4a, .mp3, .wav)</label>
+                <input type="file" id="audioFile" accept="audio/*" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer">
+            </div>
+            
+            <button onclick="processAudio()" id="runBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl transition-all shadow-lg transform active:scale-95">
+                AI解析を実行する
+            </button>
+        </div>
+
+        <div id="loading" class="hidden mt-10 text-center">
+            <div class="inline-block w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p id="statusText" class="text-slate-600 font-medium animate-pulse text-sm">AIに音声を送信中...</p>
+        </div>
+
+        <div id="resultArea" class="hidden mt-10 space-y-6">
+            <hr class="border-slate-100">
+            <div class="p-5 bg-slate-50 rounded-2xl text-sm text-slate-700 leading-relaxed border border-slate-100 whitespace-pre-wrap font-sans" id="outputText"></div>
+            <button onclick="copyResult()" class="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold uppercase tracking-widest transition-colors">
+                結果をコピーする
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // APIキーをブラウザに保存
+        window.onload = () => {
+            const savedKey = localStorage.getItem('gemini_api_key_final_v2');
+            if (savedKey) document.getElementById('apiKey').value = savedKey;
+        };
+
+        async function processAudio() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const fileInput = document.getElementById('audioFile');
+            const file = fileInput.files[0];
+            
+            if (!apiKey || !file) {
+                alert("APIキーと音声ファイルを選択してください。");
+                return;
+            }
+
+            localStorage.setItem('gemini_api_key_final_v2', apiKey);
+
+            const runBtn = document.getElementById('runBtn');
+            const loading = document.getElementById('loading');
+            const statusText = document.getElementById('statusText');
+            const resultArea = document.getElementById('resultArea');
+            const outputText = document.getElementById('outputText');
+
+            runBtn.disabled = true;
+            loading.classList.remove('hidden');
+            resultArea.classList.add('hidden');
+            statusText.innerText = "音声ファイルを読み込んでいます...";
+
+            try {
+                const base64Data = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result.split(',')[1]);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+
+                statusText.innerText = "AIが解析しています（30秒〜1分ほど）...";
+
+                // 【ここが修正ポイント】v1beta を使い、確実にモデルを認識させる
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                { text: "この音声を解析して、1.文字起こし(全文)、2.要約(3行)、3.重要な点(箇条書き)を日本語で出力してください。" },
+                                { inline_data: { mime_type: "audio/mp4", data: base64Data } }
+                            ]
+                        }]
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    throw new Error(`${data.error.message} (${data.error.code})`);
+                }
+
+                if (!data.candidates || !data.candidates[0].content) {
+                    throw new Error("AIから有効な回答が届きませんでした。");
+                }
+
+                outputText.innerText = data.candidates[0].content.parts[0].text;
+                resultArea.classList.remove('hidden');
+
+            } catch (error) {
+                console.error(error);
+                alert("❌ エラーが発生しました\n\n内容: " + error.message);
+            } finally {
+                runBtn.disabled = false;
+                loading.classList.add('hidden');
+            }
+        }
+
+        function copyResult() {
+            const text = document.getElementById('outputText').innerText;
+            navigator.clipboard.writeText(text).then(() => alert("コピーしました！"));
+        }
+    </script>
+</body>
+</html>
