@@ -1,128 +1,485 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>講義音声ノートAI - 最終安定版</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="講義の録音をAIで文字起こし・要約・要点整理するWebアプリ">
+  <title>講義ノートAI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: .5;
+      }
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .loader {
+      width: 52px;
+      height: 52px;
+      border: 4px solid #c7d2fe;
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+
+    .pulse {
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .fade-in {
+      animation: fadeIn .4s ease-out;
+    }
+  </style>
 </head>
-<body class="bg-slate-50 min-h-screen p-4 flex flex-col items-center justify-center">
-    <div class="max-w-xl w-full bg-white p-8 rounded-3xl shadow-2xl border border-slate-100">
-        <h1 class="text-3xl font-extrabold text-slate-900 mb-2 text-center">🎙️ Lecture Note AI</h1>
-        <p class="text-center text-slate-500 mb-8 text-sm">音声の文字起こし・要約・要点を自動生成</p>
-        
-        <div class="mb-6 p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
-            <label class="block text-xs font-bold text-indigo-800 uppercase tracking-widest mb-2">Gemini API Key</label>
-            <input type="password" id="apiKey" class="w-full p-3 border-none rounded-xl focus:ring-2 focus:ring-indigo-400 outline-none shadow-sm" placeholder="AIzaSy...">
-        </div>
 
-        <div class="space-y-6">
-            <div class="relative">
-                <label class="block text-sm font-semibold text-slate-700 mb-2 font-sans">音声ファイル (.m4a, .mp3, .wav)</label>
-                <input type="file" id="audioFile" accept="audio/*" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer">
+<body class="bg-slate-50 min-h-screen flex flex-col">
+
+  <!-- ========== ヘッダー ========== -->
+  <header class="sticky top-0 z-30 bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 text-white shadow-lg">
+    <div class="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
+      <h1 class="text-lg sm:text-xl font-bold tracking-tight">🎓 講義ノートAI</h1>
+      <button onclick="openSettings()" class="p-2 rounded-lg hover:bg-white/20 active:bg-white/30 transition"
+        aria-label="設定">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.573-1.066z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ========== メインコンテンツ ========== -->
+  <main class="flex-1 w-full max-w-2xl mx-auto px-4 py-6 space-y-5">
+
+    <!-- アップロードカード -->
+    <section class="bg-white rounded-2xl shadow border border-slate-200 p-5 sm:p-6 space-y-4">
+      <h2 class="font-semibold text-slate-800 flex items-center gap-2 text-[15px]">📁 音声ファイルをアップロード</h2>
+
+      <label id="dropZone"
+        class="relative flex flex-col items-center gap-2 border-2 border-dashed border-slate-300 rounded-xl p-6 sm:p-8 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/40 transition-all text-center">
+        <input type="file" id="fileInput" class="sr-only" accept="audio/*,.m4a,.mp3,.wav,.ogg,.flac,.aac,.aiff,.webm">
+        <!-- 未選択時 -->
+        <div id="emptyState">
+          <svg class="mx-auto mb-1 text-indigo-400" width="36" height="36" fill="none" stroke="currentColor"
+            stroke-width="1.5" viewBox="0 0 24 24">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+          <p class="text-sm font-medium text-slate-600">タップしてファイルを選択</p>
+          <p class="text-xs text-slate-400 mt-0.5">WAV / MP3 / M4A / AAC / OGG / FLAC 等</p>
+        </div>
+        <!-- 選択済み -->
+        <div id="fileState" class="hidden w-full">
+          <div class="flex items-center gap-3 text-left">
+            <span class="text-3xl shrink-0">🎵</span>
+            <div class="min-w-0 flex-1">
+              <p id="fName" class="text-sm font-medium text-slate-700 truncate"></p>
+              <p id="fSize" class="text-xs text-slate-400"></p>
             </div>
-            
-            <button onclick="processAudio()" id="runBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl transition-all shadow-lg transform active:scale-95">
-                AI解析を実行する
-            </button>
+            <button type="button" onclick="event.preventDefault();clearFile()"
+              class="shrink-0 w-8 h-8 rounded-full bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition flex items-center justify-center text-xs font-bold">✕</button>
+          </div>
         </div>
+      </label>
 
-        <div id="loading" class="hidden mt-10 text-center">
-            <div class="inline-block w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p id="statusText" class="text-slate-600 font-medium animate-pulse text-sm">AIに音声を送信中...</p>
-        </div>
+      <button id="runBtn" onclick="analyze()" disabled
+        class="w-full py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 disabled:from-slate-300 disabled:to-slate-300 disabled:cursor-not-allowed transition-all shadow-sm active:scale-[0.98] flex items-center justify-center gap-2 text-[15px]">
+        ▶ ノートを生成する
+      </button>
+    </section>
 
-        <div id="resultArea" class="hidden mt-10 space-y-6">
-            <hr class="border-slate-100">
-            <div class="p-5 bg-slate-50 rounded-2xl text-sm text-slate-700 leading-relaxed border border-slate-100 whitespace-pre-wrap font-sans" id="outputText"></div>
-            <button onclick="copyResult()" class="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold uppercase tracking-widest transition-colors">
-                結果をコピーする
-            </button>
-        </div>
+    <!-- ローディング -->
+    <section id="loading" class="hidden bg-white rounded-2xl shadow border border-slate-200 p-8">
+      <div class="flex flex-col items-center gap-3">
+        <div class="loader"></div>
+        <p id="loadMsg" class="text-sm font-semibold text-slate-700 pulse">AIが解析中...</p>
+        <p class="text-xs text-slate-400">音声の長さにより数十秒〜数分かかります</p>
+      </div>
+    </section>
+
+    <!-- エラー -->
+    <div id="errBox" class="hidden bg-red-50 border border-red-200 rounded-xl p-4 fade-in">
+      <p class="text-sm font-semibold text-red-700 mb-1">⚠️ エラー</p>
+      <pre id="errMsg" class="text-sm text-red-600 whitespace-pre-wrap break-words"></pre>
     </div>
 
-    <script>
-        // APIキーをブラウザに保存
-        window.onload = () => {
-            const savedKey = localStorage.getItem('gemini_api_key_final_v2');
-            if (savedKey) document.getElementById('apiKey').value = savedKey;
-        };
+    <!-- ===== 結果 ===== -->
+    <div id="results" class="hidden space-y-4 fade-in">
 
-        async function processAudio() {
-            const apiKey = document.getElementById('apiKey').value.trim();
-            const fileInput = document.getElementById('audioFile');
-            const file = fileInput.files[0];
-            
-            if (!apiKey || !file) {
-                alert("APIキーと音声ファイルを選択してください。");
-                return;
-            }
+      <!-- 要約 -->
+      <div class="bg-white rounded-2xl shadow border border-slate-200 overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-3 bg-slate-50 border-b border-slate-100">
+          <h3 class="text-sm font-semibold text-slate-700">📝 要約</h3>
+          <button onclick="copyText('outSummary',this)"
+            class="text-xs text-indigo-500 hover:text-indigo-700 font-medium px-2 py-1 rounded hover:bg-indigo-50 transition">📋
+            コピー</button>
+        </div>
+        <div id="outSummary" class="px-5 py-4 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap"></div>
+      </div>
 
-            localStorage.setItem('gemini_api_key_final_v2', apiKey);
+      <!-- 要点 -->
+      <div class="bg-white rounded-2xl shadow border border-slate-200 overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-3 bg-slate-50 border-b border-slate-100">
+          <h3 class="text-sm font-semibold text-slate-700">💡 要点</h3>
+          <button onclick="copyText('outPoints',this)"
+            class="text-xs text-indigo-500 hover:text-indigo-700 font-medium px-2 py-1 rounded hover:bg-indigo-50 transition">📋
+            コピー</button>
+        </div>
+        <div id="outPoints" class="px-5 py-4 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap"></div>
+      </div>
 
-            const runBtn = document.getElementById('runBtn');
-            const loading = document.getElementById('loading');
-            const statusText = document.getElementById('statusText');
-            const resultArea = document.getElementById('resultArea');
-            const outputText = document.getElementById('outputText');
+      <!-- 文字起こし -->
+      <div class="bg-white rounded-2xl shadow border border-slate-200 overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-3 bg-slate-50 border-b border-slate-100">
+          <h3 class="text-sm font-semibold text-slate-700">📄 文字起こし（全文）</h3>
+          <button onclick="copyText('outFull',this)"
+            class="text-xs text-indigo-500 hover:text-indigo-700 font-medium px-2 py-1 rounded hover:bg-indigo-50 transition">📋
+            コピー</button>
+        </div>
+        <details>
+          <summary
+            class="px-5 py-3 text-xs text-indigo-500 font-medium cursor-pointer select-none hover:bg-indigo-50/50 transition">
+            ▼ 全文を表示</summary>
+          <div id="outFull"
+            class="px-5 py-4 text-sm text-slate-600 leading-relaxed whitespace-pre-wrap border-t border-slate-100 max-h-[28rem] overflow-y-auto">
+          </div>
+        </details>
+      </div>
 
-            runBtn.disabled = true;
-            loading.classList.remove('hidden');
-            resultArea.classList.add('hidden');
-            statusText.innerText = "音声ファイルを読み込んでいます...";
+      <!-- 全結果コピー -->
+      <button onclick="copyAll(this)"
+        class="w-full py-3 rounded-xl font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-sm">
+        📋 すべての結果をコピー
+      </button>
 
-            try {
-                const base64Data = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result.split(',')[1]);
-                    reader.onerror = reject;
-                    reader.readAsDataURL(file);
-                });
+      <!-- 生レスポンス（デバッグ） -->
+      <details class="bg-white rounded-2xl shadow border border-slate-200 overflow-hidden">
+        <summary
+          class="px-5 py-3 text-xs text-slate-400 font-medium cursor-pointer select-none hover:bg-slate-50 transition">
+          🔍 AIの生レスポンス</summary>
+        <pre id="outRaw"
+          class="px-5 py-4 text-[11px] text-slate-500 whitespace-pre-wrap break-words border-t border-slate-100 max-h-60 overflow-y-auto font-mono leading-relaxed"></pre>
+      </details>
+    </div>
 
-                statusText.innerText = "AIが解析しています（30秒〜1分ほど）...";
+  </main>
 
-                // 【ここが修正ポイント】v1beta を使い、確実にモデルを認識させる
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  <!-- フッター -->
+  <footer class="text-center py-4 text-xs text-slate-400 border-t border-slate-100">Powered by Gemini API
+    (gemini-1.5-flash)</footer>
 
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{
-                            parts: [
-                                { text: "この音声を解析して、1.文字起こし(全文)、2.要約(3行)、3.重要な点(箇条書き)を日本語で出力してください。" },
-                                { inline_data: { mime_type: "audio/mp4", data: base64Data } }
-                            ]
-                        }]
-                    })
-                });
+  <!-- ========== APIキー設定モーダル ========== -->
+  <div id="modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden fade-in">
+      <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <h2 class="font-bold text-slate-800 text-[15px]">⚙️ API設定</h2>
+        <button onclick="closeSettings()"
+          class="w-7 h-7 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition text-sm">✕</button>
+      </div>
+      <div class="px-5 py-4 space-y-3">
+        <p class="text-xs text-slate-500 leading-relaxed">Gemini APIキーを入力してください。この端末のブラウザにのみ保存されます。</p>
+        <input type="password" id="keyInput"
+          class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none transition"
+          placeholder="AIza...">
+        <a href="https://aistudio.google.com/apikey" target="_blank"
+          class="inline-block text-xs text-indigo-500 hover:text-indigo-700 font-medium">🔑 APIキーを取得（Google AI
+          Studio）</a>
+      </div>
+      <div class="px-5 py-4 border-t border-slate-100 bg-slate-50/50">
+        <button onclick="saveKey()"
+          class="w-full py-2.5 rounded-lg font-semibold text-white bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-sm transition">保存する</button>
+      </div>
+    </div>
+  </div>
 
-                const data = await response.json();
+  <!-- トースト -->
+  <div id="toast"
+    class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-full shadow-lg">
+    ✅ コピーしました</div>
 
-                if (data.error) {
-                    throw new Error(`${data.error.message} (${data.error.code})`);
-                }
+  <!-- ========================================== -->
+  <!-- JavaScript                                 -->
+  <!-- ========================================== -->
+  <script>
+    // ===== 定数 =====
+    // v1 安定版 + gemini-1.5-flash を使用（v1beta や gemini-2.x 系での404エラーを回避）
+    const API_BASE = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent';
+    const LS_KEY = 'lecture-note-ai-key';
 
-                if (!data.candidates || !data.candidates[0].content) {
-                    throw new Error("AIから有効な回答が届きませんでした。");
-                }
+    // ===== DOM =====
+    const fileInput = document.getElementById('fileInput');
+    let pickedFile = null;
 
-                outputText.innerText = data.candidates[0].content.parts[0].text;
-                resultArea.classList.remove('hidden');
+    // ===== 設定モーダル =====
+    function openSettings() {
+      document.getElementById('keyInput').value = localStorage.getItem(LS_KEY) || '';
+      document.getElementById('modal').classList.remove('hidden');
+    }
+    function closeSettings() { document.getElementById('modal').classList.add('hidden'); }
+    function saveKey() {
+      const k = document.getElementById('keyInput').value.trim();
+      if (!k) { document.getElementById('keyInput').focus(); return; }
+      localStorage.setItem(LS_KEY, k);
+      closeSettings();
+    }
 
-            } catch (error) {
-                console.error(error);
-                alert("❌ エラーが発生しました\n\n内容: " + error.message);
-            } finally {
-                runBtn.disabled = false;
-                loading.classList.add('hidden');
-            }
+    // ===== ファイル選択 =====
+    fileInput.addEventListener('change', () => {
+      const f = fileInput.files[0];
+      if (!f) return;
+      if (f.size > 15 * 1024 * 1024) {
+        showErr('ファイルが大きすぎます（上限15MB）。\nBase64変換後に20MBを超えるとAPIが拒否します。');
+        fileInput.value = '';
+        return;
+      }
+      pickedFile = f;
+      document.getElementById('fName').textContent = f.name;
+      document.getElementById('fSize').textContent = (f.size / 1024 / 1024).toFixed(1) + ' MB';
+      document.getElementById('emptyState').classList.add('hidden');
+      document.getElementById('fileState').classList.remove('hidden');
+      document.getElementById('runBtn').disabled = false;
+      hideErr();
+    });
+
+    function clearFile() {
+      pickedFile = null;
+      fileInput.value = '';
+      document.getElementById('emptyState').classList.remove('hidden');
+      document.getElementById('fileState').classList.add('hidden');
+      document.getElementById('runBtn').disabled = true;
+    }
+
+    // ===== Base64変換 =====
+    function toBase64(file) {
+      return new Promise((ok, ng) => {
+        const r = new FileReader();
+        r.onload = () => ok(r.result.split(',')[1]);
+        r.onerror = () => ng(new Error('ファイル読み込み失敗'));
+        r.readAsDataURL(file);
+      });
+    }
+
+    // ===== MIMEタイプ判定 =====
+    function getMime(file) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      const map = {
+        mp3: 'audio/mp3', wav: 'audio/wav', ogg: 'audio/ogg',
+        flac: 'audio/flac', aac: 'audio/aac', aiff: 'audio/aiff',
+        m4a: 'audio/mp4', mp4: 'audio/mp4', webm: 'audio/webm',
+      };
+      return map[ext] || file.type || 'audio/mp4';
+    }
+
+    // ===== メイン解析処理 =====
+    async function analyze() {
+      const apiKey = localStorage.getItem(LS_KEY);
+      if (!apiKey) { openSettings(); return; }
+      if (!pickedFile) { showErr('音声ファイルを選択してください。'); return; }
+
+      const btn = document.getElementById('runBtn');
+      const loading = document.getElementById('loading');
+
+      try {
+        // UI: ローディング開始
+        btn.disabled = true;
+        hideErr();
+        document.getElementById('results').classList.add('hidden');
+        loading.classList.remove('hidden');
+
+        // 1) Base64エンコード
+        document.getElementById('loadMsg').textContent = 'ファイルを読み込み中...';
+        const b64 = await toBase64(pickedFile);
+        const mime = getMime(pickedFile);
+
+        // 2) API呼び出し
+        document.getElementById('loadMsg').textContent = 'AIが解析中...';
+
+        const prompt = 'この音声を解析して、以下の3つをすべて日本語で出力してください。\n\n' +
+          '【文字起こし】\n音声の全文を正確に文字起こししてください。\n\n' +
+          '【要約】\n内容を3行で簡潔にまとめてください。\n\n' +
+          '【要点】\n重要なポイントを3〜5個、箇条書き（先頭に「・」）で出力してください。';
+
+        const reqBody = JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: mime, data: b64 } }
+            ]
+          }]
+        });
+
+        // リクエストサイズを確認（20MB上限）
+        const reqSizeMB = (reqBody.length / 1024 / 1024).toFixed(1);
+        if (reqBody.length > 20 * 1024 * 1024) {
+          throw new Error('リクエストサイズが大きすぎます（' + reqSizeMB + 'MB）。\n20MB以下の音声ファイルを使用してください。');
+        }
+        document.getElementById('loadMsg').textContent = 'AIが解析中...（リクエスト: ' + reqSizeMB + 'MB）';
+
+        // エンドポイント: v1/models/gemini-1.5-flash:generateContent
+        const url = API_BASE + '?key=' + apiKey;
+
+        let res;
+        try {
+          res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: reqBody
+          });
+        } catch (fetchErr) {
+          throw new Error(
+            '通信に失敗しました（Failed to fetch）。\n\n' +
+            '考えられる原因:\n' +
+            '① インターネット接続を確認してください\n' +
+            '② 音声ファイルが大きすぎる可能性があります（現在: ' + reqSizeMB + 'MB）\n' +
+            '③ APIキーが正しいか確認してください（現在の長さ: ' + apiKey.length + '文字）\n\n' +
+            'MIMEタイプ: ' + mime + '\n' +
+            'ファイル名: ' + pickedFile.name + '\n' +
+            'ファイルサイズ: ' + (pickedFile.size / 1024 / 1024).toFixed(1) + 'MB\n\n' +
+            '詳細: ' + fetchErr.message
+          );
         }
 
-        function copyResult() {
-            const text = document.getElementById('outputText').innerText;
-            navigator.clipboard.writeText(text).then(() => alert("コピーしました！"));
+        const json = await res.json();
+
+        // エラーチェック
+        if (!res.ok) {
+          const code = json.error?.code || res.status;
+          const msg = json.error?.message || JSON.stringify(json, null, 2);
+          if (code === 401 || code === 403) throw new Error('APIキーが無効です。設定（⚙️）から再入力してください。\n\n' + msg);
+          if (code === 404) throw new Error('APIエンドポイントが見つかりません (404)。\nモデル名やAPIバージョンが正しいか確認してください。\n\n' + msg);
+          if (code === 429) throw new Error('API利用制限に達しました。しばらく待ってから再試行してください。');
+          throw new Error('APIエラー (' + code + '): ' + msg);
         }
-    </script>
+
+        const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) {
+          const reason = json?.candidates?.[0]?.finishReason;
+          throw new Error('AIからの応答が空です。' + (reason ? '(理由: ' + reason + ')' : '') + '\n\n' + JSON.stringify(json, null, 2));
+        }
+
+        // 3) 結果を表示
+        showResult(text);
+
+      } catch (e) {
+        console.error(e);
+        showErr(e.message);
+      } finally {
+        loading.classList.add('hidden');
+        btn.disabled = !pickedFile;
+      }
+    }
+
+    // ===== 結果のパース＆表示 =====
+    function showResult(raw) {
+      document.getElementById('outRaw').textContent = raw;
+
+      // 【見出し】ベースでセクション分割
+      const sec = (label) => {
+        const re = new RegExp('【' + label + '】\\s*([\\s\\S]*?)(?=【|$)');
+        const m = raw.match(re);
+        return m ? m[1].trim() : '';
+      };
+
+      let summary = sec('要約');
+      let points = sec('要点');
+      let trans = sec('文字起こし');
+
+      // フォールバック：パース失敗時は全文をそのまま表示
+      if (!summary && !points && !trans) {
+        trans = raw;
+        summary = '（セクションを自動抽出できませんでした。下の「全文を表示」または「AIの生レスポンス」をご確認ください）';
+        points = summary;
+      }
+
+      document.getElementById('outSummary').textContent = summary;
+      document.getElementById('outPoints').textContent = points;
+      document.getElementById('outFull').textContent = trans;
+
+      const results = document.getElementById('results');
+      results.classList.remove('hidden');
+      results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // ===== エラー表示 =====
+    function showErr(msg) {
+      document.getElementById('errMsg').textContent = msg;
+      document.getElementById('errBox').classList.remove('hidden');
+    }
+    function hideErr() { document.getElementById('errBox').classList.add('hidden'); }
+
+    // ===== コピー =====
+    async function copyText(id, btn) {
+      const text = document.getElementById(id).textContent;
+      try { await navigator.clipboard.writeText(text); } catch {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      const orig = btn.textContent;
+      btn.textContent = '✅ 済み';
+      const t = document.getElementById('toast');
+      t.classList.remove('hidden');
+      setTimeout(() => { t.classList.add('hidden'); btn.textContent = orig; }, 1800);
+    }
+
+    // ===== 全結果コピー =====
+    async function copyAll(btn) {
+      const summary = document.getElementById('outSummary').textContent;
+      const points = document.getElementById('outPoints').textContent;
+      const full = document.getElementById('outFull').textContent;
+      const all = '【要約】\n' + summary + '\n\n【要点】\n' + points + '\n\n【文字起こし】\n' + full;
+      try { await navigator.clipboard.writeText(all); } catch {
+        const ta = document.createElement('textarea');
+        ta.value = all; ta.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      const orig = btn.innerHTML;
+      btn.innerHTML = '✅ コピーしました';
+      const t = document.getElementById('toast');
+      t.classList.remove('hidden');
+      setTimeout(() => { t.classList.add('hidden'); btn.innerHTML = orig; }, 1800);
+    }
+
+    // ===== 初期化：APIキー未設定なら設定画面を表示 =====
+    if (!localStorage.getItem(LS_KEY)) openSettings();
+  </script>
 </body>
+
 </html>
