@@ -201,7 +201,7 @@
 
   <!-- フッター -->
   <footer class="text-center py-4 text-xs text-slate-400 border-t border-slate-100">Powered by Gemini API
-    (gemini-1.5-flash)</footer>
+    (gemini-2.0-flash)</footer>
 
   <!-- ========== APIキー設定モーダル ========== -->
   <div id="modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
@@ -237,8 +237,9 @@
   <!-- ========================================== -->
   <script>
     // ===== 定数 =====
-    // v1 安定版 + gemini-1.5-flash を使用（v1beta や gemini-2.x 系での404エラーを回避）
-    const API_BASE = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent';
+    // gemini-2.0-flash（v1beta）を使用
+    // ※ gemini-1.5-flash は2025年8月に廃止済み
+    const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
     const LS_KEY = 'lecture-note-ai-key';
 
     // ===== DOM =====
